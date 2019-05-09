@@ -1,6 +1,9 @@
 from mysql_functions import dboperator_instance
-from config import parser
+from config_functions import config
 from configparser import ConfigParser
+import sys
+import time
+import asyncio
 
 # этот класс выдаёт секундные свечки
 class sequenceGenerator:
@@ -13,35 +16,32 @@ class sequenceGenerator:
 		self.currentCandle = []
 		self.statistics = {}
 		self.sessionDataFile = None
+		self.startDateTime = time.time()
 		if self.restoreSessionData():
-			print('Сессия восстановлена.')
-			print('Начальная позиция: ', str(self.limitpos), '. ', 'Лимит выборки пачки: ', str(self.limitsize), '. ', end="\r")
+			print('Сессия восстановлена. Начальная позиция:', str(self.limitpos), 'Лимит выборки пачки:', str(self.limitsize))
 		else:
 			raise Exception('FATAL ERROR: Генератор последовательности не иницилизирован')
 			exit(0)
 		print('Генератор последовательности иницилизирован успешно.')
 
+	# восстанавливаем последовательность с предыдущей остановки
 	def restoreSessionData(self):
 		try:
-			self.sessionDataFile = parser.get('variables', 'sessiondatafile')
-			self.limitsize = parser.getint('constraints', 'limitsize')
-			file = open(self.sessionDataFile, 'r') 
-			self.limitpos = int(file.readline())
-			file.close()
+			#self.sessionDataFile = config.get('variables', 'sessiondatafile')
+			self.limitsize = config.getint('constraints', 'limitsize')
+			self.sessionDataFile = open(config.get('variables', 'sessiondatafile'), 'r') 
+			self.limitpos = int(self.sessionDataFile.readline())
+			self.sessionDataFile.close()
+			
 		except Exception as e:
 			raise e
 		else: 
 			return True
 
 	def saveSessionData(self):
-		file = open(self.sessionDataFile, 'w') 
-		file.write(str(self.limitpos))
-		#file.close() 
-
-	def printSessionDetails(self):
-		print('Последний обработанный тик: ' + str(self.limitpos) + '. '
-			+ 'Тиков обработано: ' + str(self.statistics['subTicksParsed']) + '. '
-			+ 'Просчитано свечей: ' + str(self.statistics['subCandlesCalculated']) + '. ')
+		self.sessionDataFile = open(config.get('variables', 'sessiondatafile'), 'w') 
+		self.sessionDataFile.write(str(self.limitpos))
+		self.sessionDataFile.close()
 
 	# загрузить в виртуальную таблицу пачку тиков
 	def load_ticks_bunch_virtual(self):
@@ -50,7 +50,8 @@ class sequenceGenerator:
 		args = {'limitpos': self.limitpos, 'limitsize': self.limitsize}
 		query = dboperator_instance.prepareQuery(query, args)
 		dboperator_instance.cursor.execute(query)
-		print('Загружена свежая пачка')
+		self.statistics['subBunchesLoaded'] = self.statistics.get('subBunchesLoaded', 0) + 1
+		#print('Загружена свежая пачка')
 
 	# вычленить список уникальных секунд в пачке 
 	def get_Distinct_DateRateTime(self):
@@ -75,7 +76,7 @@ class sequenceGenerator:
 		# pop последнего элемента происходит быстрее чем первого или любого другого
 		# поэтому перевернуть один раз и попать с конца получается выгоднее
 		self.distinctRateDateTime.reverse()
-		print('Пачка обработана, количество уникальных дат: ' + str(len(localdistinctRateDateTime)) )
+		#print('Пачка обработана, количество уникальных дат:', str(len(localdistinctRateDateTime)))
 	
 	# прочитать следующую секунду
 	def get_Next_RateDateTime(self):
@@ -118,13 +119,15 @@ class sequenceGenerator:
 		else:
 			candle = [medium, first_tick[1], first_tick[0], medium]
 		self.currentCandle = candle
-		
-		# сделать немного статистики
-		self.statistics['subTicksParsed'] = self.statistics.get('subTicksParsed', 0) + ticksCount
-		self.statistics['subCandlesCalculated'] = self.statistics.get('subCandlesCalculated', 0) + 1
 
 		# после каждого успешного вычисления свечки, сдвигаем начальную позицию выборки пачки на количество обработанных тиков
 		self.limitpos = self.limitpos + ticksCount
+
+		# сделать немного статистики
+		self.statistics['subTicksParsed'] = self.statistics.get('subTicksParsed', 0) + ticksCount
+		self.statistics['subCandlesCalculated'] = self.statistics.get('subCandlesCalculated', 0) + 1
+		self.statistics['subLastTickParsed'] = self.limitpos
+		self.statistics['subLastRateDateTime'] = self.currentRateDateTime.strftime("%Y-%m-%d %H:%M:%S")
 
 		return {'candle': candle, 'ticksCount': ticksCount, 'RateDateTime': self.currentRateDateTime}
 
@@ -133,7 +136,4 @@ class sequenceGenerator:
 		self.get_Next_RateDateTime()
 		self.get_ticks_current()
 		result = self.get_current_candle()
-		self.saveSessionData()
 		return result
-
-pass

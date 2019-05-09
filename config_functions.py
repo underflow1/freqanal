@@ -5,13 +5,13 @@ dirsep = os.path.sep
 folder = sys.path[0] + dirsep
 configfile = folder + '..' + dirsep + 'freqanal.config'
 
-parser = ConfigParser()
+config = ConfigParser()
 
 def read_config(section):
-    parser.read(configfile)
+    config.read(configfile)
     configPart = {}
-    if parser.has_section(section):
-        items = parser.items(section)
+    if config.has_section(section):
+        items = config.items(section)
         for item in items:
             configPart[item[0]] = item[1]
         return configPart

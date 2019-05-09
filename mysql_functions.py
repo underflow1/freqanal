@@ -1,5 +1,5 @@
 import mysql.connector
-from config import read_config
+from config_functions import read_config
 
 #connection = None
 class dboperator:
@@ -34,10 +34,11 @@ class dboperator:
 dboperator_instance = dboperator()
 
 try:
+	print('Подключение к базе данных...')
 	dboperator_instance.connect()
 except Exception as e:
 	print(e)
 	print('Connection to MySQL database failed. Application stopped')
 	exit(0)
 else:
-	print('Connected to MySQL database')
+	print('Подключение установлено.')

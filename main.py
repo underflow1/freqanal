@@ -1,17 +1,17 @@
 import time
 from sequence_generator import sequenceGenerator
-#from config import parser
 
 sequence = sequenceGenerator()
 start_time = time.time()
-for count in range(2000):
-#	print(sequence.next())
-	
+savecounter = 0
+for count in range(100000):
+	savecounter += 1
 	sequence.next()
-	sequence.printSessionDetails()
-	pass
+	if savecounter == 10:
+		savecounter = 0
+		sequence.saveSessionData()
+		print('Длительность', int(time.time() - start_time), sequence.statistics, end='\r')
 end_time = time.time()
-sequence.printSessionDetails()
-print('Время выполнения '+ str(end_time - start_time))
 
-pass
+print('\nВремя выполнения '+ str(end_time - start_time))
+print(sequence.statistics, end='\r')
