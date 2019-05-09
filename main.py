@@ -1,16 +1,17 @@
 import time
 from sequence_generator import sequenceGenerator
-from config import parser
+#from config import parser
 
-sequence = sequenceGenerator(10, parser.getint('constraints', 'limitsize'))
+sequence = sequenceGenerator()
 start_time = time.time()
-for count in range(20000):
+for count in range(2000):
 #	print(sequence.next())
-#	print(sequence.statistics)
-#	pass
+	
 	sequence.next()
+	sequence.printSessionDetails()
+	pass
 end_time = time.time()
-print(sequence.statistics)
+sequence.printSessionDetails()
 print('Время выполнения '+ str(end_time - start_time))
 
 pass
