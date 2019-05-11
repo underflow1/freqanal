@@ -3,10 +3,9 @@ from config_functions import config
 from configparser import ConfigParser
 import sys
 import time
-import asyncio
 
 # этот класс выдаёт секундные свечки
-class sequenceGenerator:
+class frameGenerator:
 	def __init__(self):
 		self.limitsize = None
 		self.limitpos = None
@@ -45,11 +44,23 @@ class sequenceGenerator:
 
 	# загрузить в виртуальную таблицу пачку тиков
 	def load_ticks_bunch_virtual(self):
+		# предварительно спасём остаток из предыдущей пачки
+		if self.currentRateDateTime:
+			dboperator_instance.cursor.execute('DROP TABLE if exists ticks_tmp_prev')
+			prev_query = 'CREATE TEMPORARY TABLE IF NOT EXISTS ticks_tmp_prev AS (SELECT * FROM ticks_tmp WHERE RateDateTime = $currentRateDateTime ORDER BY idticks) '
+			args = {'currentRateDateTime': self.currentRateDateTime}
+			prev_query = dboperator_instance.prepareQuery(prev_query, args)
+			dboperator_instance.cursor.execute(prev_query)
+
+		bunchQuery = 'CREATE TEMPORARY TABLE IF NOT EXISTS ticks_tmp AS (SELECT * FROM ticks WHERE idticks BETWEEN $limitpos + 1 AND $limitpos + $limitsize ) '
 		dboperator_instance.cursor.execute('DROP TABLE if exists ticks_tmp')
-		query = 'CREATE TEMPORARY TABLE IF NOT EXISTS ticks_tmp AS (SELECT * FROM python_mysql.ticks LIMIT $limitpos, $limitsize) '
 		args = {'limitpos': self.limitpos, 'limitsize': self.limitsize}
-		query = dboperator_instance.prepareQuery(query, args)
-		dboperator_instance.cursor.execute(query)
+		bunchQuery = dboperator_instance.prepareQuery(bunchQuery, args)
+		dboperator_instance.cursor.execute(bunchQuery)
+	
+		if self.currentRateDateTime:
+			add_query = ' INSERT INTO ticks_tmp (SELECT * FROM ticks_tmp_prev) '
+			dboperator_instance.cursor.execute(add_query)
 		self.statistics['subBunchesLoaded'] = self.statistics.get('subBunchesLoaded', 0) + 1
 		#print('Загружена свежая пачка')
 
@@ -62,16 +73,7 @@ class sequenceGenerator:
 		for tupleitem in result:
 			for item in tupleitem:	
 				localdistinctRateDateTime.append(item)
-		# вот тут начинается хитрый механизм: когда текущий список уникальных секунд подходит к концу
-		# нам надо загрузить новый список, но может получится так, что последняя секунда в текущем списке
-		# совпадает с первой секундой нового списка, поэтому, чтобы у нас не получились две одинаковые свечки,
-		# первую секунду в новом списке надо удалить (в случае совпадения конечно же)
-		if len(self.distinctRateDateTime) == 1:
-			last_distinctRateDateTime = self.distinctRateDateTime[0]
-			new_distinctRateDateTime = localdistinctRateDateTime[0]
-			if last_distinctRateDateTime == new_distinctRateDateTime:
-				localdistinctRateDateTime.pop(0)
-		self.distinctRateDateTime.extend(localdistinctRateDateTime)
+		self.distinctRateDateTime = localdistinctRateDateTime
 		# я переворачиваю массив чтобы POPать его с конца 
 		# pop последнего элемента происходит быстрее чем первого или любого другого
 		# поэтому перевернуть один раз и попать с конца получается выгоднее
@@ -120,6 +122,9 @@ class sequenceGenerator:
 			candle = [medium, first_tick[1], first_tick[0], medium]
 		self.currentCandle = candle
 
+		vector = int ((candle[-1] - candle[0]) * 100000)
+		sizehl = int ((candle[1] - candle[2]) * 100000)
+
 		# после каждого успешного вычисления свечки, сдвигаем начальную позицию выборки пачки на количество обработанных тиков
 		self.limitpos = self.limitpos + ticksCount
 
@@ -129,7 +134,7 @@ class sequenceGenerator:
 		self.statistics['subLastTickParsed'] = self.limitpos
 		self.statistics['subLastRateDateTime'] = self.currentRateDateTime.strftime("%Y-%m-%d %H:%M:%S")
 
-		return {'candle': candle, 'ticksCount': ticksCount, 'RateDateTime': self.currentRateDateTime}
+		return {'candle': candle, 'ticksCount': ticksCount, 'vector': vector, 'sizehl': sizehl, 'RateDateTime': self.currentRateDateTime}
 
 	# выдать следующий результат (свечку и её метаданные)
 	def next(self):
