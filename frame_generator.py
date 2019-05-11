@@ -90,11 +90,16 @@ class frameGenerator:
 
 	# загрузить тики за текущую дату в массив
 	def get_ticks_current(self):
-		query = ' SELECT RateBid, RateAsk FROM ticks_tmp WHERE RateDateTime = $currentRateDateTime ORDER BY idticks; '
+		query = ' SELECT RateBid, RateAsk, idticks FROM ticks_tmp WHERE RateDateTime = $currentRateDateTime ORDER BY idticks; '
 		args = {'currentRateDateTime': self.currentRateDateTime}
 		query = dboperator_instance.prepareQuery(query, args)	
 		dboperator_instance.cursor.execute(query)	
 		result = dboperator_instance.cursor.fetchall()
+		query = ' SELECT MAX(idticks) FROM ticks_tmp WHERE RateDateTime = $currentRateDateTime'
+		args = {'currentRateDateTime': self.currentRateDateTime}
+		query = dboperator_instance.prepareQuery(query, args)	
+		dboperator_instance.cursor.execute(query)	
+		self.limitpos = dboperator_instance.cursor.fetchone()[0]
 		self.currentTicksArray = result
 
 	# вычислить текущую свечку
@@ -126,7 +131,7 @@ class frameGenerator:
 		sizehl = int ((candle[1] - candle[2]) * 100000)
 
 		# после каждого успешного вычисления свечки, сдвигаем начальную позицию выборки пачки на количество обработанных тиков
-		self.limitpos = self.limitpos + ticksCount
+		#self.limitpos = self.limitpos + ticksCount
 
 		# сделать немного статистики
 		self.statistics['subTicksParsed'] = self.statistics.get('subTicksParsed', 0) + ticksCount
@@ -134,7 +139,7 @@ class frameGenerator:
 		self.statistics['subLastTickParsed'] = self.limitpos
 		self.statistics['subLastRateDateTime'] = self.currentRateDateTime.strftime("%Y-%m-%d %H:%M:%S")
 
-		return {'candle': candle, 'ticksCount': ticksCount, 'vector': vector, 'sizehl': sizehl, 'RateDateTime': self.currentRateDateTime}
+		return {'candle': candle, 'ticksCount': ticksCount, 'vector': vector, 'sizehl': sizehl, 'id':self.limitpos, 'RateDateTime': self.currentRateDateTime}
 
 	# выдать следующий результат (свечку и её метаданные)
 	def next(self):
