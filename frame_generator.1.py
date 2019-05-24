@@ -12,10 +12,12 @@ class frameGenerator:
 		self.currentCandle = []
 		self.statistics = {}
 		self.fileNamesList = []
-		self.currentFileName = None
+		self.currentFullFileName = None
 		self.currentFileHandler = None
 		self.currentLineNumber = 0
-		self.startDateTime = time.time()
+		self.fileTimeStart = None
+		self.fileTimeStop = None
+		self.fileTimeElapsed = None
 		self.parsedTicksCount = 0
 		self.readFilesDirectory()
 		self.openNextFile()
@@ -26,40 +28,39 @@ class frameGenerator:
 		self.fileNamesList.reverse()
 
 	def openNextFile(self):
-		self.currentFileName = config.get('various', 'datafilespath') + sysvar.dirsep + self.fileNamesList.pop()
-		self.currentFileHandler = open(self.currentFileName, 'r')
+		currentFileName = self.fileNamesList.pop()
+		self.currentFullFileName = config.get('various', 'datafilespath') + sysvar.dirsep + currentFileName
+		self.currentFileHandler = open(self.currentFullFileName, 'r')
 		self.currentLineNumber = 0
+		print('file opened', currentFileName)
+		self.fileTimeStart = time.time()
 		pass
 
 	def readticks(self):
 		self.currentTicksArray = []
 		ticksList = []
-		time_start = time.time()
 		line = self.currentFileHandler.readline()
 		rateDateTime_prev = None
-		ticksLineNumber = 0
 		while line:
 			if self.currentLineNumber > 0: # SKIP FIRST LINE
 				items = line.split("\t", 1)
 				rateDateTime = items[0].split('.',1)[0]
 				rateValue = items[1].split()
 				tick = (items[0].split('.',1)[0], float(rateValue[0]), float(rateValue[1]))
-				if ticksLineNumber == 0:
+				if len(self.currentTicksArray) == 0: # время первого тика всегда равно предыдущему (даже если это тик всего один)
 					rateDateTime_prev = rateDateTime
-				if rateDateTime == rateDateTime_prev:
+				if rateDateTime == rateDateTime_prev: # если тики равны, добавляем и читаем дальше
 					self.currentTicksArray.append(tick)
 				else:
-					self.parsedTicksCount = self.parsedTicksCount + ticksLineNumber
+					self.parsedTicksCount += len(self.currentTicksArray)
 					self.currentRateDateTime = rateDateTime_prev
-					rateDateTime_prev = rateDateTime
-					return True
-				ticksLineNumber += 1
+					return False
 			line = self.currentFileHandler.readline()
 			self.currentLineNumber += 1
-		time_end = time.time()
-		elapsed = str(time_end - time_start)
-		print('File parsed. Time elapsed:', elapsed, 'linecount', self.currentLineNumber)
-		return False
+		self.fileTimeStop = time.time()
+		self.fileTimeElapsed = self.fileTimeStart - self.fileTimeStop
+		print('file parsed', self.fileTimeElapsed)			
+		return True
 
 
 	# вычислить текущую свечку
@@ -99,9 +100,10 @@ class frameGenerator:
 		return {'candle': candle, 'ticksCount': ticksCount, 'vector': vector, 'sizehl': sizehl, 'RateDateTime': self.currentRateDateTime}
 
 a = frameGenerator()
-
-if len(a.fileNamesList) > 0:
-	a.readticks()
-	print(a.get_current_candle())
-else:
-	a.openNextFile()
+while True:
+	fileparsed = a.readticks()
+	if not fileparsed:
+		a.get_current_candle()
+	else:
+		print(a.statistics)
+		a.openNextFile()
