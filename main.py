@@ -1,6 +1,6 @@
 import time
 from datetime import timedelta
-from frame_generator import frameGenerator
+from frame_generator1 import frameGenerator
 from gestalt_generator import gestaltGenerator
 from mysql_functions import dboperator_instance
 
@@ -76,12 +76,15 @@ for count in range(10000000):
 		deal.append(gestalt.calculateGestaltPower())
 		deal.append(gestalt.getGestaltSnaphot())
 		print(gestalt.snaphotsCount, deal, '\t\t\t')
+		print()
+		print('Длительность', int(time.time() - start_time), frame.statistics, end='\r')
+		frame.saveSessionData()
 		deals.append(deal)
-	if savecounter == 10:
+	'''if savecounter == 10:
 		savecounter = 0
 		frame.saveSessionData()
 		print('Длительность', int(time.time() - start_time), frame.statistics, end='\r')
-		pass
+		pass'''
 end_time = time.time()
 
 print('\nВремя выполнения '+ str(end_time - start_time))

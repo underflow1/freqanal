@@ -1,4 +1,5 @@
 from mysql_functions import dboperator_instance
+from datetime import datetime
 from config_functions import config, sysvar
 from os import walk
 import sys
@@ -26,6 +27,11 @@ class frameGenerator:
 		for (dirpath, dirnames, filenames) in walk(config.get('various', 'datafilespath')):
 			self.fileNamesList.extend(filenames)
 		self.fileNamesList.reverse()
+
+	def saveSessionData(self):
+		self.sessionDataFile = open(config.get('various', 'sessiondatafile'), 'w') 
+		self.sessionDataFile.write(str(self.currentLineNumber))
+		self.sessionDataFile.close()
 
 	def openNextFile(self):
 		currentFileName = self.fileNamesList.pop()
@@ -97,13 +103,15 @@ class frameGenerator:
 		self.statistics['subLastTickParsed'] = self.parsedTicksCount
 		self.statistics['subLastRateDateTime'] = self.currentRateDateTime
 
-		return {'candle': candle, 'ticksCount': ticksCount, 'vector': vector, 'sizehl': sizehl, 'RateDateTime': self.currentRateDateTime}
+		return {'candle': candle, 'ticksCount': ticksCount, 'vector': vector, 'sizehl': sizehl, 'id': self.parsedTicksCount, 'RateDateTime': datetime.strptime(self.currentRateDateTime, "%Y-%m-%d %H:%M:%S")}
 
-a = frameGenerator()
-while True:
-	fileparsed = a.readticks()
-	if not fileparsed:
-		a.get_current_candle()
-	else:
-		print(a.statistics)
-		a.openNextFile()
+	# выдать следующий результат (свечку и её метаданные)
+	def next(self):
+		while True:
+			fileparsed = self.readticks()
+			if not fileparsed:
+				result = self.get_current_candle()
+				return result
+			else:
+				print(self.statistics)
+				self.openNextFile()
